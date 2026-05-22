@@ -2,6 +2,9 @@
 <img src="assets/banner.png" alt="Mythos Sentinel Banner" width="864" />
 </div>
 
+> [!NOTE]
+> Mythos Sentinel is in active build-out. Full code release coming soon.
+
 # Mythos Sentinel
 
 **The permission firewall for autonomous AI agents, MCP tools, skills, and x402/Base payments.**
