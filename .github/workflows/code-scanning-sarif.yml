@@ -1,0 +1,27 @@
+name: Optional SARIF Code Scanning
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  sarif:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node ./bin/mythos-sentinel.js scan . --sarif --out mythos-sentinel.sarif --fail-on none
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: mythos-sentinel.sarif
