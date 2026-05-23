@@ -158,7 +158,7 @@ export function mergeServices(...groups) {
     const service = normalizeService(group);
     const key = service.id || service.endpoint || service.domain;
     if (!key) continue;
-    byKey.set(key, { ...(byKey.get(key) || {}), ...service });
+    byKey.set(key, { ...byKey.get(key), ...service });
   }
   return [...byKey.values()].sort((a, b) => serviceSortKey(a).localeCompare(serviceSortKey(b)));
 }
