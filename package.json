@@ -1,0 +1,79 @@
+{
+  "name": "mythos-sentinel",
+  "version": "0.10.0",
+  "description": "Runtime MCP proxy, x402 receipt ingestion, and adaptive spend firewall for wallet-enabled AI agents.",
+  "type": "module",
+  "license": "MIT",
+  "author": "thewaltero",
+  "homepage": "https://github.com/thewaltero/mythos-sentinel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thewaltero/mythos-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thewaltero/mythos-sentinel/issues"
+  },
+  "keywords": [
+    "agent-payments",
+    "spend-firewall",
+    "routescore",
+    "x402-payments",
+    "ai-agents",
+    "mcp",
+    "x402",
+    "base",
+    "agent-security",
+    "agentic-ai",
+    "guardrails",
+    "ai-safety",
+    "codex",
+    "cursor",
+    "claude"
+  ],
+  "bin": {
+    "mythos-sentinel": "./bin/mythos-sentinel.js",
+    "mythos-sentinel-mcp": "./bin/mythos-sentinel-mcp.js",
+    "mythos": "./bin/mythos-sentinel.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./scanner": "./src/scanner/scan.js",
+    "./policy": "./src/core/policy.js",
+    "./mcp": "./src/mcp/server.js",
+    "./ui": "./src/ui/server.js",
+    "./routescore": "./src/core/routescore.js",
+    "./mcp-proxy": "./src/mcp/proxy.js",
+    "./telemetry": "./src/core/telemetry.js",
+    "./x402-receipts": "./src/core/x402-receipts.js",
+    "./receipt": "./src/core/receipt.js"
+  },
+  "files": [
+    "assets",
+    "bin",
+    "src",
+    "schemas",
+    "examples",
+    "docs",
+    "action.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node ./bin/mythos-sentinel.js",
+    "scan": "node ./bin/mythos-sentinel.js scan .",
+    "mcp": "node ./bin/mythos-sentinel-mcp.js",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "doctor": "node ./bin/mythos-sentinel.js doctor",
+    "ci:local": "npm test && node ./bin/mythos-sentinel.js doctor && node ./bin/mythos-sentinel.js scan . --json --out .mythos/reports/self-scan.json --fail-on none && node ./bin/mythos-sentinel.js check-payment --domain unknown.example --amount 0.01",
+    "release:check": "bash ./scripts/release-check.sh",
+    "prepublishOnly": "npm run release:check",
+    "ui": "node ./bin/mythos-sentinel.js ui",
+    "proxy": "node ./bin/mythos-sentinel.js proxy"
+  },
+  "packageManager": "npm@10.0.0"
+}
