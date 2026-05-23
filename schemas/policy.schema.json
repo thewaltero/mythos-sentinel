@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mythos.dev/schemas/policy.v0.json",
+  "title": "Mythos Sentinel Policy",
+  "type": "object",
+  "required": [
+    "version",
+    "mode"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "monitor",
+        "enforce"
+      ]
+    },
+    "project": {
+      "type": "string"
+    },
+    "filesystem": {
+      "type": "object",
+      "properties": {
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowRead": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowWrite": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "commands": {
+      "type": "object",
+      "properties": {
+        "blockedPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approvalPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "blockUnknown": {
+          "type": "boolean"
+        },
+        "allowedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deniedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "payments": {
+      "type": "object",
+      "properties": {
+        "x402": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxPerRequestUSDC": {
+              "type": "number"
+            },
+            "maxDailyUSDC": {
+              "type": "number"
+            },
+            "requireApprovalAboveUSDC": {
+              "type": "number"
+            },
+            "allowedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "deniedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "strategy": {
+              "enum": [
+                "strict",
+                "balanced",
+                "explorer"
+              ]
+            },
+            "enforceAllowlist": {
+              "type": "boolean"
+            },
+            "trustedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unknown": {
+              "type": "object",
+              "properties": {
+                "allowTrial": {
+                  "type": "boolean"
+                },
+                "maxPerRequestUSDC": {
+                  "type": "number"
+                },
+                "maxDailyUSDC": {
+                  "type": "number"
+                },
+                "requireApprovalAboveUSDC": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": true
+            },
+            "routeScore": {
+              "type": "object",
+              "properties": {
+                "autoAllowMinScore": {
+                  "type": "number"
+                },
+                "requireApprovalBelowScore": {
+                  "type": "number"
+                },
+                "blockBelowScore": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "object",
+      "properties": {
+        "failOn": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          }
+        },
+        "warnOn": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "scanner": {
+      "type": "object",
+      "properties": {
+        "ignore": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "useMythosIgnore": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "receipts": {
+      "type": "object",
+      "properties": {
+        "require": {
+          "type": "boolean"
+        },
+        "includeFileHashes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "routeScore": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "catalogMode": {
+          "type": "string"
+        },
+        "seedCategories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "telemetry": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "mcpProxy": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "monitor",
+            "enforce"
+          ]
+        },
+        "approvalMode": {
+          "enum": [
+            "return_error",
+            "allow_with_annotation"
+          ]
+        },
+        "toolNameStrategy": {
+          "enum": [
+            "preserve_unless_collision",
+            "prefix"
+          ]
+        },
+        "exposeSentinelTools": {
+          "type": "boolean"
+        },
+        "upstreams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "command"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "initTimeoutMs": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mythos.dev/schemas/sentinel-report.v0.json",
+  "title": "Mythos Sentinel Report",
+  "type": "object",
+  "required": ["schema", "tool", "target", "summary", "findings"],
+  "properties": {
+    "schema": { "type": "string" },
+    "tool": { "type": "object" },
+    "target": { "type": "string" },
+    "summary": { "type": "object" },
+    "findings": { "type": "array" }
+  }
+}

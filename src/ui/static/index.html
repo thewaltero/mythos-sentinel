@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mythos Sentinel</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    
+    <!-- 1. HERO / SYSTEM OVERVIEW -->
+    <header class="hero">
+      <div class="brand">
+        <span class="logo-icon">◆</span>
+        <span class="logo-text">Mythos Sentinel</span>
+      </div>
+      
+      <div class="hero-content">
+        <h1 class="tagline">Runtime firewall for agents with wallets.</h1>
+        <p class="description">
+          Control x402/Base spend, risky MCP tool calls, local telemetry, and RouteScore reliability before agents act.
+        </p>
+        
+        <div class="status-chips">
+          <span class="chip">local-first</span>
+          <span class="chip">x402/Base guard</span>
+          <span class="chip">MCP proxy</span>
+          <span class="chip">telemetry opt-in</span>
+        </div>
+        
+        <div class="hero-actions">
+          <button id="initBase" class="btn btn-primary">Initialize policy</button>
+          <button id="createDemo" class="btn btn-secondary">Demo scan</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. STATUS METRICS -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">System Status</h2>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Policy</span>
+          <strong id="policyStatus" class="metric-value">—</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Mode</span>
+          <strong id="strategyStatus" class="metric-value">—</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Telemetry</span>
+          <strong id="telemetryStatus" class="metric-value">—</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Workspace</span>
+          <strong id="workspaceStatus" class="metric-value">—</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Privacy</span>
+          <strong class="metric-value">local-only</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Version</span>
+          <strong id="versionStatus" class="metric-value">—</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ADAPTIVE SPEND FIREWALL -->
+    <section id="policy" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Adaptive Spend Firewall</h2>
+        <p class="section-subtitle">Set active guardrails for wallets and route actions.</p>
+      </div>
+      
+      <div class="firewall-grid">
+        <!-- Policy Configuration Form -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Firewall Policy</h3>
+            <span class="badge badge-currency">USDC</span>
+          </div>
+          
+          <div class="form-group">
+            <label for="strategy">Strategy</label>
+            <select id="strategy">
+              <option value="balanced">balanced</option>
+              <option value="strict">strict</option>
+              <option value="explorer">explorer</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="trustedDomains">Trusted domains</label>
+            <textarea id="trustedDomains" rows="5" spellcheck="false" placeholder="api.coinbase.com"></textarea>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="maxPerRequest">Max/request</label>
+              <input id="maxPerRequest" type="number" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label for="approvalAbove">Approval above</label>
+              <input id="approvalAbove" type="number" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label for="maxDaily">Daily max</label>
+              <input id="maxDaily" type="number" step="0.01" />
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="unknownMax">Unknown trial max</label>
+              <input id="unknownMax" type="number" step="0.001" />
+            </div>
+            <div class="form-group">
+              <label for="unknownDailyMax">Unknown daily max</label>
+              <input id="unknownDailyMax" type="number" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label for="autoScore">Auto-allow score</label>
+              <input id="autoScore" type="number" step="1" />
+            </div>
+          </div>
+          
+          <button id="savePolicy" class="btn btn-primary btn-full">Save policy</button>
+        </div>
+        
+        <!-- Rules Summary (Cohesive Dark Side) -->
+        <div class="panel behavior-panel">
+          <div class="panel-header">
+            <h3>Default Behavior</h3>
+          </div>
+          
+          <div class="rules-list">
+            <div class="rule-item">
+              <span class="rule-trigger">Trusted</span>
+              <strong class="rule-action action-allow">allow within budget</strong>
+            </div>
+            <div class="rule-item">
+              <span class="rule-trigger">Known + high score</span>
+              <strong class="rule-action action-cap">allow with caps</strong>
+            </div>
+            <div class="rule-item">
+              <span class="rule-trigger">Unknown</span>
+              <strong class="rule-action action-trial">tiny trial only</strong>
+            </div>
+            <div class="rule-item">
+              <span class="rule-trigger">Expensive</span>
+              <strong class="rule-action action-approval">approval required</strong>
+            </div>
+            <div class="rule-item">
+              <span class="rule-trigger">Denied / low score</span>
+              <strong class="rule-action action-block">block</strong>
+            </div>
+          </div>
+          
+          <p class="panel-footer-text">
+            This protects the wallet without forcing owners to pre-list every possible API an agent may discover.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. ROUTESCORE RELIABILITY LAYER -->
+    <section id="routescore" class="section">
+      <div class="section-header-split">
+        <div>
+          <h2 class="section-title">RouteScore</h2>
+          <p class="section-subtitle">Reliability catalog derived from local signal verification.</p>
+        </div>
+        <div class="action-controls">
+          <select id="routeCategory">
+            <option value="web_search">web_search</option>
+            <option value="content_extraction">content_extraction</option>
+            <option value="inference">inference</option>
+            <option value="web3_data">web3_data</option>
+            <option value="wallet_intel">wallet_intel</option>
+          </select>
+          <button id="recommendRoute" class="btn btn-secondary btn-compact">Recommend</button>
+        </div>
+      </div>
+      
+      <!-- Metrics Strip (Rendered dynamically) -->
+      <div id="routeMetrics" class="route-metrics-grid"></div>
+      
+      <!-- Catalog Grid (Rendered dynamically) -->
+      <div id="routeCatalog" class="catalog-grid"></div>
+    </section>
+
+    <!-- 5. LOCAL TELEMETRY / PASSIVE SCORING -->
+    <section id="telemetry" class="section">
+      <div class="section-header-split">
+        <div>
+          <h2 class="section-title">Local Telemetry</h2>
+          <p class="section-subtitle">Passive scoring based on local execution paths without cloud storage.</p>
+        </div>
+        <div class="action-controls">
+          <button id="enableTelemetry" class="btn btn-secondary btn-compact">Enable</button>
+          <button id="disableTelemetry" class="btn btn-ghost btn-compact">Disable</button>
+          <button id="recordTelemetryDemo" class="btn btn-ghost btn-compact">Demo event</button>
+        </div>
+      </div>
+      
+      <div class="privacy-banner">
+        <span class="banner-icon">🔒</span>
+        <p class="banner-text">
+          <strong>Privacy policy:</strong> Stores sanitized endpoint metadata only. Never prompts, responses, secrets, private files, or wallet balances.
+        </p>
+      </div>
+      
+      <!-- Telemetry metrics (Rendered dynamically) -->
+      <div id="telemetryMetrics" class="route-metrics-grid"></div>
+      
+      <!-- Telemetry details list (Rendered dynamically) -->
+      <div id="telemetrySummary" class="telemetry-grid"></div>
+    </section>
+
+    <!-- 6. PLAYGROUND / LIVE CHECKS -->
+    <section id="guards" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Runtime Checks</h2>
+        <p class="section-subtitle">Execute safety assertions and watch the decision engine react in real time.</p>
+      </div>
+      
+      <div class="playground-grid">
+        <!-- Payment Check -->
+        <div class="panel check-card">
+          <div class="check-card-header">
+            <span class="check-type">PAYMENT</span>
+            <h3>Pre-spend check</h3>
+          </div>
+          <div class="check-inputs">
+            <input id="payDomain" placeholder="api.exa.ai" />
+            <input id="payAmount" type="number" step="0.001" placeholder="0.01" />
+            <input id="payScore" type="number" step="1" placeholder="RouteScore optional" />
+          </div>
+          <button id="checkPayment" class="btn btn-secondary btn-full">Check payment</button>
+        </div>
+        
+        <!-- Command Check -->
+        <div class="panel check-card">
+          <div class="check-card-header">
+            <span class="check-type">SHELL</span>
+            <h3>Command check</h3>
+          </div>
+          <div class="check-inputs">
+            <input id="commandInput" placeholder="npm test" />
+          </div>
+          <button id="checkCommand" class="btn btn-secondary btn-full">Check command</button>
+        </div>
+        
+        <!-- File Check -->
+        <div class="panel check-card">
+          <div class="check-card-header">
+            <span class="check-type">FILES</span>
+            <h3>File check</h3>
+          </div>
+          <div class="check-inputs">
+            <input id="filePath" placeholder=".env" />
+            <select id="fileOp">
+              <option value="read">read</option>
+              <option value="write">write</option>
+            </select>
+          </div>
+          <button id="checkFile" class="btn btn-secondary btn-full">Check file</button>
+        </div>
+      </div>
+      
+      <!-- Live Output Terminal Window -->
+      <div class="panel console-panel">
+        <div class="console-header">
+          <div class="console-title">
+            <span class="console-dot red"></span>
+            <span class="console-dot yellow"></span>
+            <span class="console-dot green"></span>
+            <span class="console-label">Live local output</span>
+          </div>
+          <button id="scanWorkspace" class="btn btn-secondary btn-compact">Scan workspace</button>
+        </div>
+        <pre id="resultSummary" class="console empty">Run a guard, recommendation, or scan to see decisions here.</pre>
+        <div id="findings" class="findings-container"></div>
+      </div>
+    </section>
+
+    <!-- 7. SETUP / SNIPPETS -->
+    <section id="setup" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Setup Configuration</h2>
+        <p class="section-subtitle">Add Sentinel to your environment file, agent manifest, or proxy pipeline.</p>
+      </div>
+      
+      <div class="setup-grid">
+        <div class="panel setup-card">
+          <div class="panel-header">
+            <div>
+              <h3>Proxy MCP config</h3>
+              <p class="setup-desc">Recommended: one Sentinel server that gates upstream tools.</p>
+            </div>
+            <button data-copy="proxyConfig" class="btn btn-copy">Copy</button>
+          </div>
+          <pre id="proxyConfig" class="code-block"></pre>
+        </div>
+        
+        <div class="panel setup-card">
+          <div class="panel-header">
+            <div>
+              <h3>Direct MCP config</h3>
+              <p class="setup-desc">Lightweight mode: agent asks Sentinel before risky actions.</p>
+            </div>
+            <button data-copy="mcpConfig" class="btn btn-copy">Copy</button>
+          </div>
+          <pre id="mcpConfig" class="code-block"></pre>
+        </div>
+        
+        <div class="panel setup-card">
+          <div class="panel-header">
+            <div>
+              <h3>Agent rules</h3>
+              <p class="setup-desc">Force the agent to ask Sentinel before risky actions.</p>
+            </div>
+            <button data-copy="agentRules" class="btn btn-copy">Copy</button>
+          </div>
+          <pre id="agentRules" class="code-block"></pre>
+        </div>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <span class="footer-brand">◆ Mythos Sentinel</span>
+      <span class="footer-copy">Runtime firewall for wallet-enabled agents. Local-first.</span>
+    </footer>
+    
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

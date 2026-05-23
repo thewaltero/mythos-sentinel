@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mythos-sentinel-proxy": {
+      "command": "npx",
+      "args": ["mythos-sentinel", "proxy"]
+    }
+  }
+}

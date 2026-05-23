@@ -1,0 +1,20 @@
+{
+  "name": "github-pr-reviewer",
+  "version": "0.1.0",
+  "permissions": {
+    "filesystem": {
+      "read": ["src/**", "test/**", "package.json"],
+      "write": []
+    },
+    "network": {
+      "allow": ["api.github.com"]
+    },
+    "payments": {
+      "maxUSDCPerRequest": 0,
+      "maxUSDCDaily": 0
+    },
+    "secrets": {
+      "deny": ["*"]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mythos.dev/schemas/agent-receipt.v0.json",
+  "title": "Mythos Agent Work Receipt",
+  "type": "object",
+  "required": ["schema", "createdAt", "agent", "diff", "verification", "snapshots"],
+  "properties": {
+    "schema": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "agent": { "type": "object" },
+    "workspace": { "type": "string" },
+    "summary": { "type": "string" },
+    "diff": { "type": "object" },
+    "verification": { "type": "object" },
+    "snapshots": { "type": "object" }
+  }
+}

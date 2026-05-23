@@ -1,0 +1,142 @@
+{
+  "version": "0.8",
+  "mode": "enforce",
+  "project": "base-agent-project",
+  "filesystem": {
+    "deny": [
+      ".env",
+      ".env.*",
+      "**/.env",
+      "**/.env.*",
+      "**/id_rsa",
+      "**/id_ed25519",
+      "**/*.pem",
+      "**/*.key",
+      "**/*.p12",
+      "**/*.pfx"
+    ],
+    "allowRead": [
+      "**/*"
+    ],
+    "allowWrite": [
+      "src/**",
+      "test/**",
+      "docs/**",
+      "examples/**",
+      ".github/workflows/**",
+      "README.md",
+      "package.json",
+      "package-lock.json",
+      "mythos.policy.json"
+    ]
+  },
+  "commands": {
+    "blockedPatterns": [
+      "curl\\s+[^|]+\\|\\s*(sudo\\s+)?(bash|sh|zsh)",
+      "wget\\s+[^|]+\\|\\s*(sudo\\s+)?(bash|sh|zsh)",
+      "Invoke-WebRequest[^|]+\\|\\s*iex",
+      "iwr\\s+[^|]+\\s*\\|\\s*iex",
+      "rm\\s+-rf\\s+(/|~|\\$HOME|\\.\\./)",
+      "chmod\\s+777",
+      "base64\\s+-d\\s+[^|]+\\|\\s*(bash|sh|zsh)",
+      "powershell\\s+.*-enc(odedcommand)?"
+    ],
+    "approvalPatterns": [
+      "npm\\s+install",
+      "pnpm\\s+install",
+      "yarn\\s+add",
+      "pip\\s+install",
+      "docker\\s+run",
+      "git\\s+push"
+    ]
+  },
+  "network": {
+    "blockUnknown": true,
+    "allowedDomains": [
+      "api.coinbase.com",
+      "api.developer.coinbase.com",
+      "api.exa.ai",
+      "mainnet.base.org",
+      "base.org",
+      "api.github.com"
+    ],
+    "deniedDomains": []
+  },
+  "payments": {
+    "x402": {
+      "enabled": true,
+      "strategy": "balanced",
+      "enforceAllowlist": false,
+      "maxPerRequestUSDC": 0.25,
+      "maxDailyUSDC": 5,
+      "requireApprovalAboveUSDC": 0.25,
+      "trustedDomains": [
+        "api.coinbase.com",
+        "api.developer.coinbase.com",
+        "api.exa.ai",
+        "www.x402.org",
+        "x402.org"
+      ],
+      "allowedDomains": [],
+      "deniedDomains": [],
+      "unknown": {
+        "allowTrial": true,
+        "maxPerRequestUSDC": 0.02,
+        "maxDailyUSDC": 0.25,
+        "requireApprovalAboveUSDC": 0.02
+      },
+      "routeScore": {
+        "autoAllowMinScore": 80,
+        "requireApprovalBelowScore": 60,
+        "blockBelowScore": 35
+      }
+    }
+  },
+  "routeScore": {
+    "enabled": true,
+    "catalogMode": "seed",
+    "telemetry": {
+      "anonymous": true,
+      "collectPrompts": false,
+      "collectResponses": false,
+      "collectWalletBalances": false,
+      "enabled": false,
+      "localOnly": true,
+      "storePath": ".mythos/telemetry/events.jsonl"
+    },
+    "seedCategories": [
+      "web_search",
+      "content_extraction",
+      "inference",
+      "web3_data",
+      "wallet_intel"
+    ]
+  },
+  "findings": {
+    "failOn": [
+      "critical",
+      "high"
+    ],
+    "warnOn": [
+      "medium"
+    ]
+  },
+  "scanner": {
+    "ignore": [
+      "mythos.policy.json"
+    ],
+    "useMythosIgnore": true
+  },
+  "receipts": {
+    "require": true,
+    "includeFileHashes": true
+  },
+  "mcpProxy": {
+    "enabled": true,
+    "mode": "enforce",
+    "approvalMode": "return_error",
+    "toolNameStrategy": "preserve_unless_collision",
+    "exposeSentinelTools": false,
+    "upstreams": []
+  }
+}

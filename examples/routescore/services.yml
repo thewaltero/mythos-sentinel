@@ -1,0 +1,19 @@
+services:
+  - name: Custom Search API
+    category: web_search
+    domain: api.example.com
+    endpoint: https://api.example.com/search
+    priceUSDC: 0.01
+    network: base
+    tags:
+      - search
+      - custom
+  - name: Custom Browser Session API
+    category: browser
+    domain: browser.example.com
+    endpoint: https://browser.example.com/session
+    priceUSDC: 0.05
+    network: base
+    tags:
+      - browser
+      - automation

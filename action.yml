@@ -1,0 +1,43 @@
+name: Mythos Sentinel
+
+description: Scan agent skills, MCP tools, repo instructions, and x402/Base payment code.
+
+author: thewaltero
+
+inputs:
+  path:
+    description: Path to scan
+    required: false
+    default: .
+  policy:
+    description: Path to mythos.policy.json
+    required: false
+    default: mythos.policy.json
+  format:
+    description: text, json, or sarif
+    required: false
+    default: text
+  out:
+    description: Optional output file
+    required: false
+    default: ''
+  fail-on:
+    description: Severity threshold to fail on. Use none to never fail.
+    required: false
+    default: high
+
+runs:
+  using: composite
+  steps:
+    - name: Run Mythos Sentinel
+      shell: bash
+      run: |
+        FLAGS=""
+        if [ "${{ inputs.format }}" = "json" ]; then FLAGS="$FLAGS --json"; fi
+        if [ "${{ inputs.format }}" = "sarif" ]; then FLAGS="$FLAGS --sarif"; fi
+        if [ -n "${{ inputs.out }}" ]; then FLAGS="$FLAGS --out ${{ inputs.out }}"; fi
+        node "${{ github.action_path }}/bin/mythos-sentinel.js" scan "${{ inputs.path }}" --policy "${{ inputs.policy }}" --fail-on "${{ inputs.fail-on }}" $FLAGS
+
+branding:
+  icon: shield
+  color: purple
