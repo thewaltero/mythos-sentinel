@@ -9,7 +9,6 @@ export const ROUTESCORE_SERVICES_FILE = 'services.json';
 export const CDP_BAZAAR_RESOURCES_URL = 'https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources';
 export const CDP_BAZAAR_SEARCH_URL = 'https://api.cdp.coinbase.com/platform/v2/x402/discovery/search';
 
-
 export const SERVICE_CATEGORIES = Object.freeze({
   web_search: { label: 'Web search', aliases: ['search', 'serp', 'research'] },
   content_extraction: { label: 'Content extraction', aliases: ['content', 'extract', 'reader', 'crawl', 'scrape'] },
@@ -286,7 +285,6 @@ export function routeService({ category, maxPriceUSDC, services = seedX402Servic
   };
 }
 
-
 export async function executeFallbackRoute({ plan, category, maxPriceUSDC, services = seedX402Services, telemetry = {}, query, minScore = 0, executor, onAttempt } = {}) {
   const routePlan = plan || routeService({ category, maxPriceUSDC, services, telemetry, query, minScore });
   if (!routePlan.selected) return { ok: false, plan: routePlan, attempts: [], error: 'no_route_available' };
@@ -410,7 +408,7 @@ export function parseSimpleYaml(raw) {
   let pendingArrayKey = null;
 
   for (const rawLine of lines) {
-    const line = rawLine.replace(/#.*$/, '').trimEnd();
+    const line = stripYamlComment(rawLine).trimEnd();
     if (!line.trim()) continue;
     const trimmed = line.trim();
     if (trimmed === 'services:') { inServices = true; continue; }
@@ -447,6 +445,12 @@ export function parseSimpleYaml(raw) {
   return { services };
 }
 
+function stripYamlComment(line) {
+  const value = String(line || '');
+  const commentIndex = value.indexOf('#');
+  return commentIndex === -1 ? value : value.slice(0, commentIndex);
+}
+
 function parseYamlValue(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return '';
@@ -481,7 +485,12 @@ function serviceSearchText(service) {
 }
 
 function slugify(value) {
-  return String(value || '').toLowerCase().replace(/https?:\/\//g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+  const normalized = String(value || '')
+    .toLowerCase()
+    .replace(/https?:\/\//g, '')
+    .replace(/[^a-z0-9]+/g, '-');
+
+  return trimBoundaryCharacters(normalized, '-').slice(0, 80);
 }
 
 function readableName(domain, endpoint, index) {
@@ -499,13 +508,32 @@ function URL_SAFE_PATH(endpoint) {
 }
 
 function normalizeCategory(category) {
-  const value = String(category || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const raw = String(category || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_');
+
+  const value = trimBoundaryCharacters(raw, '_');
+
   if (!value) return 'general';
   if (SERVICE_CATEGORIES[value]) return value;
   for (const [id, meta] of Object.entries(SERVICE_CATEGORIES)) {
     if ((meta.aliases || []).includes(value)) return id;
   }
   return value;
+}
+
+function trimBoundaryCharacters(value, character) {
+  const input = String(value || '');
+  const target = String(character || '');
+  if (!input || target.length !== 1) return input;
+
+  let start = 0;
+  let end = input.length;
+
+  while (start < end && input[start] === target) start += 1;
+  while (end > start && input[end - 1] === target) end -= 1;
+
+  return input.slice(start, end);
 }
 
 function inferCategory(text) {
