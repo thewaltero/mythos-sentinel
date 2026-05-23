@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Mythos Sentinel local runtime data
+.mythos/reports/
+.mythos/snapshots/
+.mythos/telemetry/
+.mythos/routescore/
+.mythos/x402/
+!.mythos/
+!.mythos/README.md
+
+mythos-receipt.json
+*.sarif
+*.tgz
+npm-debug.log*
