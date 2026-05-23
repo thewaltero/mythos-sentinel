@@ -18,8 +18,8 @@ const STATIC_DIR = path.join(__dirname, 'static');
 
 export async function startDashboard(options = {}) {
   const cwd = path.resolve(options.cwd || process.cwd());
-  const host = options.host || '127.0.0.1';
-  const port = Number(options.port || 4317);
+  const host = normalizeDashboardHost(options.host || '127.0.0.1');
+  const port = normalizeDashboardPort(options.port || 4317);
   const server = await createUiServer({ cwd, demo: Boolean(options.demo) });
 
   await new Promise((resolve, reject) => {
@@ -29,13 +29,15 @@ export async function startDashboard(options = {}) {
 
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
-  const url = `http://${host}:${actualPort}`;
+  const url = createDashboardUrl(host, actualPort);
+
   console.log(`${PRODUCT} Dashboard ${VERSION}`);
   console.log(`Workspace: ${cwd}`);
   console.log(`Open: ${url}`);
   console.log('Tip: in GitHub Codespaces, use the forwarded port link.');
 
   if (options.open) openBrowser(url);
+
   return { server, url, port: actualPort };
 }
 
@@ -295,9 +297,50 @@ function json(res, payload, status = 200) {
   res.end(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
+function normalizeDashboardHost(host) {
+  const value = String(host || '127.0.0.1').trim();
+
+  if (value === 'localhost' || value === '127.0.0.1' || value === '0.0.0.0' || value === '::1' || value === '[::1]') {
+    return value;
+  }
+
+  throw new Error(`Refusing unsafe dashboard host: ${value}`);
+}
+
+function normalizeDashboardPort(port) {
+  const value = Number(port);
+
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new Error(`Invalid dashboard port: ${port}`);
+  }
+
+  return value;
+}
+
+function createDashboardUrl(host, port) {
+  const safeHost = host === '0.0.0.0' ? '127.0.0.1' : host;
+  return `http://${safeHost}:${normalizeDashboardPort(port)}`;
+}
+
 function openBrowser(url) {
-  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+  const parsed = new URL(url);
+
+  if (parsed.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) {
+    throw new Error(`Refusing to open unsafe dashboard URL: ${url}`);
+  }
+
+  const launch = browserLaunchCommand(process.platform, parsed.toString());
+  const child = spawn(launch.command, launch.args, {
+    detached: true,
+    stdio: 'ignore',
+    shell: false
+  });
+
   child.unref();
+}
+
+function browserLaunchCommand(platform, url) {
+  if (platform === 'darwin') return { command: 'open', args: [url] };
+  if (platform === 'win32') return { command: 'cmd', args: ['/c', 'start', '', url] };
+  return { command: 'xdg-open', args: [url] };
 }
