@@ -30,23 +30,6 @@ allow · approval_required · block · receipt
 | Wallet permissions | Limit raw spend | Context-aware allow / approval / block decisions |
 | API marketplaces | Help agents discover services | Local reliability scoring and routing decisions |
 
-## What changed in v0.10
-
-Sentinel now has **x402 receipt ingestion**, **fallback routing primitives**, and a broader service-category model. v0.9 added custom/Bazaar service imports and route plans; v0.10 attaches payment proof, summarizes observed x402 spend, and gives agents a structured fallback execution path instead of a single brittle endpoint choice.
-
-Sentinel is no longer just a static allowlist guard. It now has an **adaptive payment model**:
-
-- trusted domains auto-allow within budget;
-- known services can be auto-allowed when RouteScore is high;
-- unknown x402 domains get tiny trial payments instead of being blocked by default;
-- expensive or low-score calls require approval;
-- denied domains and very low-score calls block;
-- RouteScore starts with a seed catalog, then learns from imports, optional Bazaar metadata, telemetry, and receipts;
-- telemetry is opt-in and stores sanitized endpoint metadata only;
-- `routescore route` and `sentinel_route_x402_service` return selected services plus fallback plans;
-- `routescore fallback` simulates/validates fallback attempts without spending;
-- `x402-receipt ingest` stores sanitized payment proof locally and can feed telemetry.
-
 ## Why this exists
 
 x402/Bazaar-style discovery makes it easier for agents to find and pay APIs. That creates a new problem: agents can spend quickly, but they still need budgets, trust signals, logs, and approval rules.
