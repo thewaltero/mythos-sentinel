@@ -1,0 +1,13 @@
+# Repository-local scanner ignores for Mythos Sentinel self-scans.
+# These files intentionally contain dangerous strings as examples, test fixtures, or rule definitions.
+README.md
+docs/**
+examples/**
+test/**
+src/scanner/rules.js
+src/core/policy.js
+.mythos/**
+src/ui/static/app.js
+
+src/core/routescore.js
+src/core/x402-receipts.js
