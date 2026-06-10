@@ -2,9 +2,10 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import readline from 'node:readline';
 import { EventEmitter } from 'node:events';
-import { loadPolicy, checkPayment, checkCommand, checkFilesystemAccess, checkNetwork, normalizeDomain } from '../core/policy.js';
+import { loadPolicy, checkPayment, checkCommand, checkFilesystemAccess, checkNetwork, normalizeDomain, paymentDomainTier } from '../core/policy.js';
 import { seedX402Services, serviceForDomain, scoreService } from '../core/routescore.js';
 import { appendTelemetryEvent, telemetryEnabled } from '../core/telemetry.js';
+import { dailySpend, recordSpend, effectiveSpend } from '../core/spend-ledger.js';
 import { VERSION } from '../version.js';
 
 export const PROXY_SERVER_NAME = 'mythos-sentinel-proxy';
@@ -14,8 +15,16 @@ const DEFAULT_PROXY = Object.freeze({
   approvalMode: 'return_error',
   exposeSentinelTools: true,
   toolNameStrategy: 'preserve_unless_collision',
+  // What happens to a tools/call that classifyToolCall could not recognize as
+  // payment, command, file, or network intent. 'allow' preserves existing
+  // behavior (classification is heuristic; see THREAT_MODEL.md). Security-
+  // sensitive deployments should set 'approval_required' or 'block' so the
+  // proxy fails closed on tools it does not understand.
+  defaultAction: 'allow',
   upstreams: []
 });
+
+const DEFAULT_ACTIONS = Object.freeze(['allow', 'approval_required', 'block']);
 
 /**
  * Run an enforcing MCP proxy over stdio.
@@ -64,6 +73,7 @@ export function normalizeProxyConfig(config = {}) {
   merged.mode = merged.mode || 'enforce';
   merged.approvalMode = merged.approvalMode || 'return_error';
   merged.toolNameStrategy = merged.toolNameStrategy || 'preserve_unless_collision';
+  merged.defaultAction = DEFAULT_ACTIONS.includes(merged.defaultAction) ? merged.defaultAction : 'allow';
   return merged;
 }
 
@@ -148,12 +158,20 @@ export class McpProxy {
     const entry = this.toolIndex.get(publicName);
     if (!entry) return proxyContent({ ok: false, decision: 'block', reason: `Unknown proxied tool: ${publicName}` }, true);
 
+    // Sentinel's own ledger is the source of truth for budget state; the
+    // caller's args can only tighten it (see evaluateToolCall). A corrupted
+    // ledger reads as zero recorded spend — fail direction documented in
+    // THREAT_MODEL.md.
+    const spend = await dailySpend({ rootDir: this.rootDir });
+
     const decision = evaluateToolCall({
       toolName: publicName,
       upstreamName: entry.upstreamName,
       upstreamId: entry.client.id,
       args,
-      policy: this.policy
+      policy: this.policy,
+      spend,
+      defaultAction: this.proxyConfig.defaultAction
     });
 
     if (decision.decision === 'block') {
@@ -163,6 +181,28 @@ export class McpProxy {
     if (decision.decision === 'approval_required') {
       await this.recordToolTelemetry({ entry, decision, ok: null, latencyMs: 0, errorType: 'approval_required' });
       return approvalToolResult(decision);
+    }
+
+    // Reserve the spend for every payment intent we are about to forward,
+    // *before* the upstream call: if the process dies mid-call, the ledger
+    // has already counted the attempt (conservative direction). Receipt
+    // ingestion may count the same payment again; over-counting only
+    // tightens the budget.
+    for (const candidate of decision.candidates || []) {
+      if (candidate.type !== 'payment') continue;
+      const amount = Number(candidate.amountUSDC);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      const matched = serviceForDomain(candidate.domain, seedX402Services);
+      const tier = paymentDomainTier(candidate.domain, this.policy, {
+        knownService: Boolean(matched) || Boolean(candidate.knownService)
+      });
+      await recordSpend({
+        rootDir: this.rootDir,
+        domain: candidate.domain,
+        amountUSDC: amount,
+        tier,
+        source: 'mcp-proxy'
+      });
     }
 
     const started = Date.now();
@@ -314,7 +354,7 @@ export class StdioMcpClient extends EventEmitter {
   }
 }
 
-export function evaluateToolCall({ toolName, upstreamName, upstreamId, args = {}, policy }) {
+export function evaluateToolCall({ toolName, upstreamName, upstreamId, args = {}, policy, spend, defaultAction = 'allow' }) {
   const checks = [];
   const reasons = [];
   const tool = `${upstreamId || 'upstream'}:${upstreamName || toolName}`;
@@ -325,11 +365,20 @@ export function evaluateToolCall({ toolName, upstreamName, upstreamId, args = {}
     if (candidate.type === 'payment') {
       const matched = serviceForDomain(candidate.domain, seedX402Services);
       const score = matched ? scoreService(matched).score : candidate.routeScore;
+      // Budget figures come from Sentinel's own spend ledger when provided.
+      // Caller-supplied running totals are honored only via max(): an agent
+      // reporting 0 cannot reset its budget; an agent reporting more than the
+      // ledger has seen tightens enforcement early. (See THREAT_MODEL.md.)
+      const effective = effectiveSpend({
+        ledgerSpend: spend,
+        reportedDailyUSDC: candidate.dailySpentUSDC || 0,
+        reportedUnknownDailyUSDC: candidate.unknownDailySpentUSDC || 0
+      });
       decision = checkPayment({
         domain: candidate.domain,
         amountUSDC: candidate.amountUSDC,
-        dailySpentUSDC: candidate.dailySpentUSDC || 0,
-        unknownDailySpentUSDC: candidate.unknownDailySpentUSDC || 0,
+        dailySpentUSDC: effective.dailySpentUSDC,
+        unknownDailySpentUSDC: effective.unknownDailySpentUSDC,
         routeScore: score,
         category: candidate.category,
         knownService: Boolean(matched) || Boolean(candidate.knownService)
@@ -350,7 +399,19 @@ export function evaluateToolCall({ toolName, upstreamName, upstreamId, args = {}
     }
   }
 
-  if (!checks.length) reasons.push('no risky payment, shell, file, or network intent detected; forwarded by proxy');
+  if (!checks.length) {
+    // Classification is heuristic, so an unrecognized tool call is an honest
+    // "we don't know what this does" — the policy decides what that means.
+    if (defaultAction === 'block') {
+      reasons.push('no payment, shell, file, or network intent recognized; blocked by mcpProxy.defaultAction=block');
+      return { ok: false, decision: 'block', tool, checks, reasons, candidates };
+    }
+    if (defaultAction === 'approval_required') {
+      reasons.push('no payment, shell, file, or network intent recognized; approval required by mcpProxy.defaultAction=approval_required');
+      return { ok: false, decision: 'approval_required', tool, checks, reasons, candidates };
+    }
+    reasons.push('no risky payment, shell, file, or network intent detected; forwarded by proxy (mcpProxy.defaultAction=allow)');
+  }
   return { ok: true, decision: 'allow', tool, checks, reasons, candidates };
 }
 

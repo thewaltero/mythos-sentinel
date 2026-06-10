@@ -1,6 +1,6 @@
 {
   "name": "mythos-sentinel",
-  "version": "0.10.0",
+  "version": "0.1.1",
   "description": "Runtime MCP proxy, x402 receipt ingestion, and adaptive spend firewall for wallet-enabled AI agents.",
   "type": "module",
   "license": "MIT",

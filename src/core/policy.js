@@ -11,7 +11,12 @@ export const defaultPolicy = Object.freeze({
   filesystem: {
     deny: ['.env', '.env.*', '**/.env', '**/.env.*', '**/id_rsa', '**/id_ed25519', '**/*.pem', '**/*.key', '**/*.p12', '**/*.pfx'],
     allowRead: ['**/*'],
-    allowWrite: ['src/**', 'test/**', 'docs/**', 'examples/**', '.github/workflows/**', 'README.md', 'package.json', 'package-lock.json', 'mythos.policy.json']
+    allowWrite: ['src/**', 'test/**', 'docs/**', 'examples/**', 'README.md', 'package.json', 'package-lock.json', 'mythos.policy.json'],
+    // Writes here are allowed only with explicit approval. CI workflow files
+    // are the canonical member: an agent that can write a workflow can run
+    // arbitrary code with the repo's CI credentials on the next push, so this
+    // is a privilege-escalation surface, not a normal source edit.
+    approvalWrite: ['.github/workflows/**']
   },
   commands: {
     blockedPatterns: [
@@ -206,7 +211,20 @@ export function checkFilesystemAccess({ filePath, operation = 'read' }, policy) 
 
   if (!rel) reasons.push('missing file path');
   if (matchesAnyGlob(rel, fsPolicy.deny || [])) reasons.push(`path denied by filesystem policy: ${rel}`);
-  if (op === 'write' && (fsPolicy.allowWrite || []).length && !matchesAnyGlob(rel, fsPolicy.allowWrite || [])) {
+
+  // Approval tier sits between deny and allow: the write is legitimate but
+  // high-impact (e.g. CI workflows), so it needs a human in the loop.
+  if (!reasons.length && op === 'write' && matchesAnyGlob(rel, fsPolicy.approvalWrite || [])) {
+    return {
+      ok: false,
+      decision: 'approval_required',
+      subject: rel,
+      operation: op,
+      reasons: [`write path requires approval: ${rel}`]
+    };
+  }
+
+  if (op === 'write' && (fsPolicy.allowWrite || []).length && !matchesAnyGlob(rel, [...(fsPolicy.allowWrite || []), ...(fsPolicy.approvalWrite || [])])) {
     reasons.push(`write path not in allowWrite list: ${rel}`);
   }
   if (op === 'read' && (fsPolicy.allowRead || []).length && !matchesAnyGlob(rel, fsPolicy.allowRead || [])) {
@@ -214,6 +232,21 @@ export function checkFilesystemAccess({ filePath, operation = 'read' }, policy) 
   }
 
   return reasons.length ? { ok: false, decision: 'block', subject: rel, operation: op, reasons } : { ok: true, decision: 'allow', subject: rel, operation: op, reasons: ['filesystem access within policy'] };
+}
+
+/**
+ * Classify a payment domain into the same tiers checkPayment enforces:
+ * 'trusted' (trusted/allowed lists), 'known' (recognized service), or
+ * 'unknown'. Used by the proxy to attribute recorded spend to the right
+ * sub-budget in the spend ledger.
+ */
+export function paymentDomainTier(domain, policy, { knownService = false } = {}) {
+  const x402 = policy?.payments?.x402 || {};
+  const normalized = normalizeDomain(domain);
+  const trustedDomains = [...(x402.trustedDomains || []), ...(x402.allowedDomains || [])];
+  if (normalized && trustedDomains.some((pattern) => domainMatches(normalized, pattern))) return 'trusted';
+  if (knownService) return 'known';
+  return 'unknown';
 }
 
 export function checkPayment({

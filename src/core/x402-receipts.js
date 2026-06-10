@@ -2,8 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ensureDir, exists } from './fs.js';
-import { normalizeDomain } from './policy.js';
+import { normalizeDomain, paymentDomainTier } from './policy.js';
 import { appendTelemetryEvent } from './telemetry.js';
+import { recordSpend } from './spend-ledger.js';
 
 export const X402_RECEIPTS_VERSION = '0.10';
 export const DEFAULT_X402_RECEIPTS_DIR = '.mythos/x402';
@@ -31,6 +32,21 @@ export async function ingestX402Receipt(input, { rootDir = process.cwd(), policy
     receipt.storePath = file;
   }
 
+  // Settled receipts feed the spend ledger so budget enforcement reflects
+  // money that verifiably left the wallet — including payments that never
+  // passed through the proxy. A payment seen by both the proxy and receipt
+  // ingestion may be counted twice; over-counting only tightens budgets.
+  let ledger = { recorded: false };
+  if (receipt.settlementStatus === 'settled' && Number(receipt.amountUSDC) > 0) {
+    ledger = await recordSpend({
+      rootDir,
+      domain: receipt.domain,
+      amountUSDC: Number(receipt.amountUSDC),
+      tier: paymentDomainTier(receipt.domain, policy),
+      source: `x402-receipt:${source}`
+    });
+  }
+
   const telemetry = await appendTelemetryEvent({
     rootDir,
     policy,
@@ -41,6 +57,7 @@ export async function ingestX402Receipt(input, { rootDir = process.cwd(), policy
     ok: true,
     stored: Boolean(store),
     receipt,
+    ledger: { recorded: Boolean(ledger.recorded), dayTotalUSDC: ledger.dayTotalUSDC ?? null },
     telemetry: { stored: telemetry.stored, reason: telemetry.reason || null }
   };
 }

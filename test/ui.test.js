@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createUiServer } from '../src/ui/server.js';
+import { VERSION } from '../src/version.js';
 
 test('dashboard server exposes status and config APIs', async () => {
   const server = await createUiServer();
@@ -10,7 +11,7 @@ test('dashboard server exposes status and config APIs', async () => {
   try {
     const status = await fetch(`${base}/api/status`).then((r) => r.json());
     assert.equal(status.product, 'Mythos Sentinel');
-    assert.equal(status.version, '0.1.0');
+    assert.equal(status.version, VERSION);
 
     const configs = await fetch(`${base}/api/configs`).then((r) => r.json());
     assert.match(configs.mcp, /mythos-sentinel/);

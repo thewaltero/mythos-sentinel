@@ -10,6 +10,7 @@ import { createSnapshot } from './core/snapshot.js';
 import { createReceipt, writeReceipt, verifyReceipt } from './core/receipt.js';
 import { runMcpServer } from './mcp/server.js';
 import { runMcpProxy } from './mcp/proxy.js';
+import { dailySpend, recordSpend, effectiveSpend } from './core/spend-ledger.js';
 import { startDashboard } from './ui/server.js';
 import { executeFallbackRoute, fetchBazaarResources, fetchBazaarSearch, importServicesFile, listServiceCategories, loadRouteScoreServices, recommendService, routeService, saveCustomServices, seedX402Services, serviceForDomain, scoreService } from './core/routescore.js';
 import { appendTelemetryEvent, readTelemetryEvents, setTelemetryEnabled, telemetryEnabled, telemetryPrivacy, telemetrySummary } from './core/telemetry.js';
@@ -36,6 +37,8 @@ export async function runCli(argv) {
       return scanCommand(args);
     case 'check-payment':
       return paymentCommand(args);
+    case 'spend':
+      return spendCommand(args);
     case 'routescore':
       return routeScoreCommand(args);
     case 'telemetry':
@@ -117,18 +120,63 @@ async function scanCommand(args) {
 
 async function paymentCommand(args) {
   const policy = await loadPolicy(args.policy || 'mythos.policy.json');
+  // The local spend ledger is the default source of budget state; explicit
+  // --daily-spent / --unknown-daily-spent flags can only raise the figures
+  // (max), never lower them. --no-ledger skips the ledger for pure
+  // what-if evaluation.
+  const useLedger = args.ledger !== false && !args['no-ledger'];
+  const ledgerSpend = useLedger ? await dailySpend({ rootDir: process.cwd() }) : null;
+  const effective = effectiveSpend({
+    ledgerSpend,
+    reportedDailyUSDC: args['daily-spent'] || 0,
+    reportedUnknownDailyUSDC: args['unknown-daily-spent'] || 0
+  });
   const decision = checkPayment({
     domain: required(args.domain, '--domain'),
     amountUSDC: required(args.amount, '--amount'),
-    dailySpentUSDC: args['daily-spent'] || 0,
-    unknownDailySpentUSDC: args['unknown-daily-spent'] || 0,
+    dailySpentUSDC: effective.dailySpentUSDC,
+    unknownDailySpentUSDC: effective.unknownDailySpentUSDC,
     routeScore: args['route-score'],
     category: args.category,
     knownService: Boolean(args['known-service']) || Boolean(serviceForDomain(args.domain, seedX402Services))
   }, policy);
+  if (ledgerSpend) decision.ledger = { date: ledgerSpend.date, totalUSDC: ledgerSpend.totalUSDC, unknownUSDC: ledgerSpend.unknownUSDC, corrupted: ledgerSpend.corrupted };
   if (args.json) console.log(JSON.stringify(decision, null, 2));
   else console.log(formatPaymentDecision(decision));
   if (!decision.ok) process.exitCode = 3;
+}
+
+async function spendCommand(args) {
+  const sub = args._[0] || 'today';
+  if (sub === 'record') {
+    const result = await recordSpend({
+      rootDir: process.cwd(),
+      domain: required(args.domain, '--domain'),
+      amountUSDC: required(args.amount, '--amount'),
+      tier: args.tier || 'known',
+      source: 'cli'
+    });
+    if (args.json) console.log(JSON.stringify(result, null, 2));
+    else if (result.ok) console.log(`Recorded ${result.amountUSDC} USDC for ${result.domain} (${result.tier}) · day total ${result.dayTotalUSDC} USDC`);
+    else console.log(`Not recorded: ${result.reason}`);
+    if (!result.ok) process.exitCode = 3;
+    return;
+  }
+
+  const summary = await dailySpend({ rootDir: process.cwd(), date: args.date });
+  if (args.json) {
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
+  console.log(`Spend ledger · ${summary.date}`);
+  console.log(`- total: ${summary.totalUSDC} USDC across ${summary.entries} entries`);
+  console.log(`- unknown-tier: ${summary.unknownUSDC} USDC`);
+  const domains = Object.entries(summary.byDomain);
+  if (domains.length) {
+    console.log('- by domain:');
+    for (const [domain, amount] of domains) console.log(`  ${domain}: ${amount} USDC`);
+  }
+  if (summary.corrupted) console.log('! ledger file was unreadable and treated as empty — see THREAT_MODEL.md (Spend accounting)');
 }
 
 
@@ -543,7 +591,8 @@ Security layer for autonomous agents, MCP tools, skills, and x402/Base payments.
 Usage:
   mythos-sentinel init [--base] [--force]
   mythos-sentinel scan [path] [--policy mythos.policy.json] [--json] [--sarif] [--out report.json] [--fail-on high]
-  mythos-sentinel check-payment --domain api.example.com --amount 0.05 [--daily-spent 1.2] [--route-score 91]
+  mythos-sentinel check-payment --domain api.example.com --amount 0.05 [--daily-spent 1.2] [--route-score 91] [--no-ledger]
+  mythos-sentinel spend [today] [--date YYYY-MM-DD] [--json] | spend record --domain api.example.com --amount 0.05 [--tier unknown]
   mythos-sentinel check-command -- "npm install left-pad"
   mythos-sentinel check-file --path src/index.js --operation write
   mythos-sentinel check-network --domain api.github.com
