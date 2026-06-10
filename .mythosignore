@@ -1,6 +1,7 @@
 # Repository-local scanner ignores for Mythos Sentinel self-scans.
 # These files intentionally contain dangerous strings as examples, test fixtures, or rule definitions.
 README.md
+THREAT_MODEL.md
 docs/**
 examples/**
 test/**
