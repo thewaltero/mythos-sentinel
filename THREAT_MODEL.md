@@ -33,7 +33,7 @@ tool names and well-known argument keys. This catches the common shapes used
 by real MCP servers, but it is pattern matching, not semantics:
 
 - A tool with an unrecognized name and opaque arguments (e.g. `do_thing` with
-  `{ "c": "[recursive delete command]" }`) produces **no** classification.
+  `{ "c": "rm -rf /" }`) produces **no** classification.
 - What happens then is governed by `mcpProxy.defaultAction`:
   - `allow` (default): the call is forwarded, annotated as unclassified.
   - `approval_required`: the call is held for a human.

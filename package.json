@@ -32,8 +32,7 @@
   ],
   "bin": {
     "mythos-sentinel": "./bin/mythos-sentinel.js",
-    "mythos-sentinel-mcp": "./bin/mythos-sentinel-mcp.js",
-    "mythos": "./bin/mythos-sentinel.js"
+    "mythos-sentinel-mcp": "./bin/mythos-sentinel-mcp.js"
   },
   "exports": {
     ".": "./src/index.js",
@@ -45,7 +44,8 @@
     "./mcp-proxy": "./src/mcp/proxy.js",
     "./telemetry": "./src/core/telemetry.js",
     "./x402-receipts": "./src/core/x402-receipts.js",
-    "./receipt": "./src/core/receipt.js"
+    "./receipt": "./src/core/receipt.js",
+    "./spend-ledger": "./src/core/spend-ledger.js"
   },
   "files": [
     "assets",

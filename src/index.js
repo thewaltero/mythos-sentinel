@@ -17,3 +17,4 @@ export { VERSION } from './version.js';
 export { runMcpProxy, McpProxy, evaluateToolCall, classifyToolCall } from './mcp/proxy.js';
 
 export { ingestX402Receipt, ingestX402ReceiptFile, normalizeX402Receipt, readX402Receipts, summarizeX402Receipts, receiptToTelemetryEvent } from './core/x402-receipts.js';
+export { spendLedgerPath, readSpendLedger, dailySpend, recordSpend, effectiveSpend, utcDateKey, SPEND_TIERS } from './core/spend-ledger.js';

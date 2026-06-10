@@ -37,7 +37,7 @@ Example config:
 
 ## Runtime proxy mode
 
-Direct MCP mode gives agents Sentinel tools to ask for permission. Runtime proxy mode places Sentinel in front of upstream MCP servers so risky calls cannot bypass policy.
+Direct MCP mode gives agents Sentinel tools to ask for permission. Runtime proxy mode places Sentinel in the call path of upstream MCP servers: recognized payment, shell, file, and network intent is gated before forwarding, budgets are enforced from Sentinel's own spend ledger, and unrecognized calls follow `mcpProxy.defaultAction` (`allow` by default; set `approval_required` or `block` to fail closed). Classification is heuristic — see [THREAT_MODEL.md](../THREAT_MODEL.md) for exact guarantees.
 
 ```bash
 mythos-sentinel proxy --config proxy.json

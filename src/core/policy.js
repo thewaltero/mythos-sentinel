@@ -249,6 +249,13 @@ export function paymentDomainTier(domain, policy, { knownService = false } = {})
   return 'unknown';
 }
 
+// Display-only rounding for reason strings: keeps projected totals like
+// 0.03 + 0.3 from rendering as 0.32999999999999996. Enforcement comparisons
+// above use the raw values.
+function roundUSDCDisplay(value) {
+  return Math.round(Number(value) * 1e6) / 1e6;
+}
+
 export function checkPayment({
   domain,
   amountUSDC,
@@ -285,7 +292,7 @@ export function checkPayment({
     blockReasons.push(`amount ${amount} USDC exceeds maxPerRequestUSDC ${x402.maxPerRequestUSDC}`);
   }
   if (Number.isFinite(x402.maxDailyUSDC) && daily + amount > x402.maxDailyUSDC) {
-    blockReasons.push(`daily spend ${daily + amount} USDC exceeds maxDailyUSDC ${x402.maxDailyUSDC}`);
+    blockReasons.push(`daily spend ${roundUSDCDisplay(daily + amount)} USDC exceeds maxDailyUSDC ${x402.maxDailyUSDC}`);
   }
 
   const routePolicy = x402.routeScore || {};
@@ -317,7 +324,7 @@ export function checkPayment({
         approvalReasons.push(`unknown-domain amount ${amount} USDC exceeds trial max ${unknown.maxPerRequestUSDC}`);
       }
       if (Number.isFinite(unknown.maxDailyUSDC) && unknownDaily + amount > unknown.maxDailyUSDC) {
-        approvalReasons.push(`unknown-domain daily spend ${unknownDaily + amount} USDC exceeds trial daily max ${unknown.maxDailyUSDC}`);
+        approvalReasons.push(`unknown-domain daily spend ${roundUSDCDisplay(unknownDaily + amount)} USDC exceeds trial daily max ${unknown.maxDailyUSDC}`);
       }
       if (Number.isFinite(unknown.requireApprovalAboveUSDC) && amount > unknown.requireApprovalAboveUSDC) {
         approvalReasons.push(`unknown-domain amount ${amount} USDC requires approval above ${unknown.requireApprovalAboveUSDC}`);

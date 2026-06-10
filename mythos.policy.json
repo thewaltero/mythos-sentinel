@@ -23,11 +23,13 @@
       "test/**",
       "docs/**",
       "examples/**",
-      ".github/workflows/**",
       "README.md",
       "package.json",
       "package-lock.json",
       "mythos.policy.json"
+    ],
+    "approvalWrite": [
+      ".github/workflows/**"
     ]
   },
   "commands": {
@@ -137,6 +139,7 @@
     "approvalMode": "return_error",
     "toolNameStrategy": "preserve_unless_collision",
     "exposeSentinelTools": false,
-    "upstreams": []
+    "upstreams": [],
+    "defaultAction": "allow"
   }
 }

@@ -46,13 +46,14 @@ Sentinel is the local control layer around that behavior:
 
 | Feature | What it does |
 | --- | --- |
-| Adaptive x402/Base spend guard | Enforces trusted, known, unknown, denied, budget, and RouteScore-based decisions. |
+| Adaptive x402/Base spend guard | Enforces trusted, known, unknown, denied, budget, and RouteScore-based decisions against a persistent local spend ledger. |
 | RouteScore catalog + routing | Scores seed, custom, and Bazaar-imported paid agent APIs, then recommends selected services and fallback routes. |
 | Fallback routing primitives | Plans and executes fallback attempts through caller-provided executors so agents can retry safer alternatives when a provider fails. |
 | x402 receipt ingestion | Normalizes sanitized x402 payment receipts, tracks settlement status, and summarizes observed spend without storing prompts or responses. |
 | Opt-in local telemetry | Stores sanitized local endpoint events only after the user enables it. No prompts, responses, secrets, private files, or wallet balances. |
 | Passive reliability scoring | Uses proxied-call success/failure, latency, schema, and price-match signals to improve RouteScore locally. |
-| Runtime MCP proxy | Puts Sentinel in front of upstream MCP tools so risky calls cannot bypass policy. |
+| Runtime MCP proxy | Puts Sentinel in the call path of upstream MCP tools: recognized payment, shell, file, and network intent is gated, and unrecognized calls follow a configurable `defaultAction` (see [THREAT_MODEL.md](THREAT_MODEL.md)). |
+| Local spend ledger | Sentinel's own persistent record of daily spend. Budget enforcement reads `max(ledger, caller-reported)`, so an agent reporting zero cannot reset its budget. |
 | Scanner and guards | Finds risky instructions and checks command, file, network, and payment actions before execution. |
 | Receipts | Captures before/after workspace hashes and verifies agent work. |
 | Local dashboard | A premium local control room for policy, RouteScore, telemetry, receipts, and guard tests. |
@@ -74,7 +75,7 @@ Node.js 20+ is required. Sentinel does **not** require OpenAI, Anthropic, Coinba
 
 ## Runtime MCP proxy
 
-Direct MCP mode gives agents Sentinel tools to ask for permission. Runtime proxy mode puts Sentinel in front of upstream MCP servers so risky calls cannot bypass policy.
+Direct MCP mode gives agents Sentinel tools to ask for permission. Runtime proxy mode puts Sentinel in the call path of upstream MCP servers: every recognized payment, shell, file, or network intent is gated before forwarding, daily budgets are enforced from Sentinel's own spend ledger, and calls the classifier does not recognize follow `mcpProxy.defaultAction` (`allow` by default for compatibility; set `approval_required` or `block` to fail closed). Classification is heuristic — read [THREAT_MODEL.md](THREAT_MODEL.md) for exactly what the proxy does and does not guarantee.
 
 ```bash
 mythos-sentinel proxy
