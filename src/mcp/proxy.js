@@ -5,7 +5,8 @@ import { EventEmitter } from 'node:events';
 import { loadPolicy, checkPayment, checkCommand, checkFilesystemAccess, checkNetwork, normalizeDomain, paymentDomainTier } from '../core/policy.js';
 import { seedX402Services, serviceForDomain, scoreService } from '../core/routescore.js';
 import { appendTelemetryEvent, telemetryEnabled } from '../core/telemetry.js';
-import { dailySpend, recordSpend, effectiveSpend } from '../core/spend-ledger.js';
+import { dailySpend, recordSpend, effectiveSpend, mandateSpend } from '../core/spend-ledger.js';
+import { findCoveringMandate } from '../core/mandates.js';
 import { VERSION } from '../version.js';
 
 export const PROXY_SERVER_NAME = 'mythos-sentinel-proxy';
@@ -183,6 +184,41 @@ export class McpProxy {
       return approvalToolResult(decision);
     }
 
+    // Signed-mandate layer. Always *attribute* payments to a covering mandate
+    // when one exists (so receipts prove compliance); *require* one only when
+    // policy.payments.x402.requireMandate is true. Mandate caps are enforced
+    // against the ledger's lifetime per-mandate totals, with the same
+    // conservative direction as everything else here.
+    const mandateByCandidate = new Map();
+    const requireMandate = Boolean(this.policy?.payments?.x402?.requireMandate);
+    for (const candidate of decision.candidates || []) {
+      if (candidate.type !== 'payment') continue;
+      const amount = Number(candidate.amountUSDC);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      const covering = await findCoveringMandate({
+        domain: candidate.domain,
+        category: candidate.category,
+        amountUSDC: amount,
+        rootDir: this.rootDir,
+        mandateSpendLookup: (mandateId) => mandateSpend({ rootDir: this.rootDir, mandateId })
+      });
+      if (covering) {
+        mandateByCandidate.set(candidate, covering.record.mandate.mandateId);
+      } else if (requireMandate) {
+        const held = {
+          ...decision,
+          ok: false,
+          decision: 'approval_required',
+          reasons: [
+            ...decision.reasons,
+            `payment: no valid signed mandate covers ${candidate.domain} for ${amount} USDC (requireMandate is enabled)`
+          ]
+        };
+        await this.recordToolTelemetry({ entry, decision: held, ok: null, latencyMs: 0, errorType: 'mandate_required' });
+        return approvalToolResult(held);
+      }
+    }
+
     // Reserve the spend for every payment intent we are about to forward,
     // *before* the upstream call: if the process dies mid-call, the ledger
     // has already counted the attempt (conservative direction). Receipt
@@ -201,7 +237,8 @@ export class McpProxy {
         domain: candidate.domain,
         amountUSDC: amount,
         tier,
-        source: 'mcp-proxy'
+        source: 'mcp-proxy',
+        mandateId: mandateByCandidate.get(candidate) || null
       });
     }
 

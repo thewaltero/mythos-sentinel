@@ -48,6 +48,10 @@ export const defaultPolicy = Object.freeze({
       enabled: true,
       strategy: 'balanced',
       enforceAllowlist: false,
+      // When true, every payment must be covered by a valid signed spend
+      // mandate (.mythos/mandates/) or it is held for approval. Off by
+      // default for compatibility; see THREAT_MODEL.md "Signed spend mandates".
+      requireMandate: false,
       maxPerRequestUSDC: 0.25,
       maxDailyUSDC: 5,
       requireApprovalAboveUSDC: 0.25,

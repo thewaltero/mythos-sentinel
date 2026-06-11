@@ -1,6 +1,6 @@
 {
   "name": "mythos-sentinel",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Runtime MCP proxy, x402 receipt ingestion, and adaptive spend firewall for wallet-enabled AI agents.",
   "type": "module",
   "license": "MIT",
@@ -45,7 +45,10 @@
     "./telemetry": "./src/core/telemetry.js",
     "./x402-receipts": "./src/core/x402-receipts.js",
     "./receipt": "./src/core/receipt.js",
-    "./spend-ledger": "./src/core/spend-ledger.js"
+    "./spend-ledger": "./src/core/spend-ledger.js",
+    "./mandates": "./src/core/mandates.js",
+    "./attest": "./src/core/attest.js",
+    "./directory": "./src/core/directory.js"
   },
   "files": [
     "assets",
@@ -75,5 +78,8 @@
     "ui": "node ./bin/mythos-sentinel.js ui",
     "proxy": "node ./bin/mythos-sentinel.js proxy"
   },
-  "packageManager": "npm@10.0.0"
+  "packageManager": "npm@10.0.0",
+  "dependencies": {
+    "ethers": "^6.13.0"
+  }
 }

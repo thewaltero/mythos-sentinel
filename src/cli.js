@@ -10,7 +10,10 @@ import { createSnapshot } from './core/snapshot.js';
 import { createReceipt, writeReceipt, verifyReceipt } from './core/receipt.js';
 import { runMcpServer } from './mcp/server.js';
 import { runMcpProxy } from './mcp/proxy.js';
-import { dailySpend, recordSpend, effectiveSpend } from './core/spend-ledger.js';
+import { dailySpend, recordSpend, effectiveSpend, mandateSpend } from './core/spend-ledger.js';
+import { createMandate, verifyMandate, loadMandates, checkMandate } from './core/mandates.js';
+import { buildAttestationBundle, writeAttestationBundle, verifyAttestationBundle, signAttestationBundle, verifySignedAttestation, encodeEasData, submitAttestation, registerEasSchema, EAS_SCHEMA_STRING, EAS_ADDRESSES } from './core/attest.js';
+import { buildDirectory, writeDirectory } from './core/directory.js';
 import { startDashboard } from './ui/server.js';
 import { executeFallbackRoute, fetchBazaarResources, fetchBazaarSearch, importServicesFile, listServiceCategories, loadRouteScoreServices, recommendService, routeService, saveCustomServices, seedX402Services, serviceForDomain, scoreService } from './core/routescore.js';
 import { appendTelemetryEvent, readTelemetryEvents, setTelemetryEnabled, telemetryEnabled, telemetryPrivacy, telemetrySummary } from './core/telemetry.js';
@@ -39,6 +42,12 @@ export async function runCli(argv) {
       return paymentCommand(args);
     case 'spend':
       return spendCommand(args);
+    case 'mandate':
+      return mandateCommand(args);
+    case 'attest':
+      return attestCommand(args);
+    case 'directory':
+      return directoryCommand(args);
     case 'routescore':
       return routeScoreCommand(args);
     case 'telemetry':
@@ -144,6 +153,134 @@ async function paymentCommand(args) {
   if (args.json) console.log(JSON.stringify(decision, null, 2));
   else console.log(formatPaymentDecision(decision));
   if (!decision.ok) process.exitCode = 3;
+}
+
+async function mandateCommand(args) {
+  const sub = args._[0] || 'list';
+
+  if (sub === 'create') {
+    const keyEnv = args['key-env'] || 'SENTINEL_MANDATE_KEY';
+    const privateKey = process.env[keyEnv];
+    if (!privateKey) {
+      console.error(`No private key in $${keyEnv}. Export one (dedicated, low-value key) and retry. Keys are used in-memory only and never stored.`);
+      process.exitCode = 2;
+      return;
+    }
+    const days = Number(args.days || 7);
+    const record = await createMandate({
+      agent: args.agent || '',
+      scopeDomains: args.domains || '*',
+      scopeCategories: args.categories || '*',
+      maxPerRequestUSDC: required(args['max-per-request'], '--max-per-request'),
+      capUSDC: required(args.cap, '--cap'),
+      expiry: args.expiry || Math.floor(Date.now() / 1000) + days * 86400
+    }, { privateKey, rootDir: process.cwd() });
+    if (args.json) console.log(JSON.stringify(record, null, 2));
+    else console.log(`Mandate ${record.mandate.mandateId} signed by ${record.signer}\n- scope: ${record.mandate.scopeDomains} / ${record.mandate.scopeCategories}\n- per-request: ${Number(record.mandate.maxPerRequestMicroUSDC) / 1e6} USDC, cap: ${Number(record.mandate.capMicroUSDC) / 1e6} USDC\n- expires: ${new Date(Number(record.mandate.expiry) * 1000).toISOString()}\n- stored: ${record.storePath}`);
+    return;
+  }
+
+  if (sub === 'verify') {
+    const file = required(args.file, '--file');
+    const record = JSON.parse(await fs.readFile(path.resolve(file), 'utf8'));
+    const sig = await verifyMandate(record);
+    const spent = await mandateSpend({ rootDir: process.cwd(), mandateId: record.mandate?.mandateId });
+    const check = sig.ok ? checkMandate({ domain: args.domain || '', category: args.category, amountUSDC: args.amount || 0, record, spentOnMandateUSDC: spent }) : null;
+    const out = { signature: sig, enforcement: check, recordedSpendUSDC: spent };
+    if (args.json) console.log(JSON.stringify(out, null, 2));
+    else {
+      console.log(`Signature: ${sig.ok ? 'VALID' : 'INVALID'} (${sig.signer || 'unknown'})`);
+      for (const r of sig.reasons) console.log(`- ${r}`);
+      if (check) { console.log(`Enforcement${args.domain ? ` for ${args.domain} @ ${args.amount || 0} USDC` : ''}: ${check.decision.toUpperCase()}`); for (const r of check.reasons) console.log(`- ${r}`); }
+      console.log(`Recorded spend on mandate: ${spent} USDC`);
+    }
+    if (!sig.ok) process.exitCode = 3;
+    return;
+  }
+
+  // list
+  const records = await loadMandates({ rootDir: process.cwd() });
+  const rows = [];
+  for (const record of records) {
+    const sig = await verifyMandate(record);
+    const spent = await mandateSpend({ rootDir: process.cwd(), mandateId: record.mandate?.mandateId });
+    rows.push({ mandateId: record.mandate?.mandateId, signer: sig.signer, valid: sig.ok, scope: record.mandate?.scopeDomains, capUSDC: Number(record.mandate?.capMicroUSDC || 0) / 1e6, spentUSDC: spent, expiry: record.mandate?.expiry ? new Date(Number(record.mandate.expiry) * 1000).toISOString() : null });
+  }
+  if (args.json) console.log(JSON.stringify(rows, null, 2));
+  else if (!rows.length) console.log('No mandates in .mythos/mandates/. Create one with: mythos-sentinel mandate create --cap 5 --max-per-request 0.25 --domains api.example.com --days 7');
+  else for (const r of rows) console.log(`${r.valid ? 'VALID  ' : 'INVALID'} ${r.mandateId} · scope ${r.scope} · spent ${r.spentUSDC}/${r.capUSDC} USDC · expires ${r.expiry} · signer ${r.signer}`);
+}
+
+async function attestCommand(args) {
+  const sub = args._[0] || 'bundle';
+  const rootDir = process.cwd();
+
+  if (sub === 'schema') {
+    if (!args.broadcast) {
+      console.log(`EAS schema (register once per network, then set policy.attestation.schemaUid):\n  ${EAS_SCHEMA_STRING}\nNetworks: ${Object.entries(EAS_ADDRESSES).map(([k, v]) => `${k} (chainId ${v.chainId}, registry ${v.schemaRegistry})`).join(' · ')}\nDry run. Re-run with --broadcast --network base-sepolia and a funded key in $SENTINEL_ATTEST_KEY to register.`);
+      return;
+    }
+    const result = await registerEasSchema({ network: args.network || 'base-sepolia', privateKey: process.env[args['key-env'] || 'SENTINEL_ATTEST_KEY'], rpcUrl: args.rpc });
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (sub === 'verify') {
+    const bundle = JSON.parse(await fs.readFile(path.resolve(required(args.file, '--file')), 'utf8'));
+    const integrity = verifyAttestationBundle(bundle);
+    let signature = null;
+    if (bundle.signed) signature = await verifySignedAttestation(bundle.signed);
+    const out = { integrity, signature };
+    if (args.json) console.log(JSON.stringify(out, null, 2));
+    else {
+      console.log(`Integrity: ${integrity.ok ? 'OK' : 'FAILED'}`); for (const r of integrity.reasons) console.log(`- ${r}`);
+      if (signature) { console.log(`Signature: ${signature.ok ? 'VALID' : 'INVALID'} (${signature.signer || 'unknown'})`); for (const r of signature.reasons) console.log(`- ${r}`); }
+    }
+    if (!integrity.ok || (signature && !signature.ok)) process.exitCode = 3;
+    return;
+  }
+
+  // bundle (default): build → optionally sign → optionally broadcast
+  const include = [].concat(args.include || []).filter(Boolean);
+  const bundle = await buildAttestationBundle({ rootDir, includePaths: include, uri: args.uri || '' });
+
+  const keyEnv = args['key-env'] || 'SENTINEL_ATTEST_KEY';
+  if (args.sign || args.broadcast) {
+    const privateKey = process.env[keyEnv];
+    if (!privateKey) { console.error(`No private key in $${keyEnv}. Use a dedicated low-value key; it is used in-memory only.`); process.exitCode = 2; return; }
+    bundle.signed = await signAttestationBundle(bundle, { privateKey });
+  }
+
+  const file = await writeAttestationBundle(bundle, { rootDir });
+
+  if (args.broadcast) {
+    const policy = await loadPolicy(args.policy || 'mythos.policy.json');
+    const result = await submitAttestation(bundle, {
+      network: args.network || 'base-sepolia',
+      schemaUid: args['schema-uid'] || policy.attestation?.schemaUid,
+      privateKey: process.env[keyEnv],
+      rpcUrl: args.rpc
+    });
+    bundle.onchain = result;
+    await fs.writeFile(file, JSON.stringify(bundle, null, 2) + '\n', 'utf8');
+    console.log(`Attested on ${result.network}: tx ${result.txHash}`);
+  }
+
+  if (args.json) console.log(JSON.stringify(bundle, null, 2));
+  else {
+    console.log(`Attestation bundle: ${bundle.itemCount} items\n- merkleRoot: ${bundle.merkleRoot}\n- bundleHash: ${bundle.bundleHash}${bundle.signed ? `\n- signed by: ${bundle.signed.signer}` : ''}\n- written: ${file}`);
+    if (!args.broadcast) console.log('Dry run (no chain interaction). Add --sign for an offline signature, --broadcast --network base-sepolia to attest on-chain. EAS data preview available with --json.');
+  }
+  if (args['print-eas-data']) console.log(await encodeEasData(bundle));
+}
+
+async function directoryCommand(args) {
+  const sub = args._[0] || 'build';
+  if (sub !== 'build') { console.log('Usage: mythos-sentinel directory build [--min-receipts 3] [--out .mythos/directory] [--json]'); return; }
+  const directory = await buildDirectory({ rootDir: process.cwd(), minReceipts: args['min-receipts'] ?? 3 });
+  const { jsonPath, mdPath } = await writeDirectory(directory, { rootDir: process.cwd(), outDir: args.out || '.mythos/directory' });
+  if (args.json) console.log(JSON.stringify(directory, null, 2));
+  else console.log(`Directory: ${directory.serviceCount} services (min ${directory.minReceipts} receipts)\n- ${jsonPath}\n- ${mdPath}\nThis is an explicit opt-in export — review it before publishing anywhere.`);
 }
 
 async function spendCommand(args) {
@@ -592,7 +729,7 @@ Usage:
   mythos-sentinel init [--base] [--force]
   mythos-sentinel scan [path] [--policy mythos.policy.json] [--json] [--sarif] [--out report.json] [--fail-on high]
   mythos-sentinel check-payment --domain api.example.com --amount 0.05 [--daily-spent 1.2] [--route-score 91] [--no-ledger]
-  mythos-sentinel spend [today] [--date YYYY-MM-DD] [--json] | spend record --domain api.example.com --amount 0.05 [--tier unknown]
+  mythos-sentinel spend [today] [--date YYYY-MM-DD] [--json] | spend record --domain api.example.com --amount 0.05 [--tier unknown]\n  mythos-sentinel mandate create --cap 5 --max-per-request 0.25 [--domains a.com,b.com] [--days 7] | mandate list | mandate verify --file m.json [--domain a.com --amount 0.1]\n  mythos-sentinel attest [--include path ...] [--sign] [--broadcast --network base-sepolia] | attest verify --file bundle.json | attest schema [--broadcast]\n  mythos-sentinel directory build [--min-receipts 3] [--out .mythos/directory]
   mythos-sentinel check-command -- "npm install left-pad"
   mythos-sentinel check-file --path src/index.js --operation write
   mythos-sentinel check-network --domain api.github.com
