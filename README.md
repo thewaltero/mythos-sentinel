@@ -54,6 +54,9 @@ Sentinel is the local control layer around that behavior:
 | Passive reliability scoring | Uses proxied-call success/failure, latency, schema, and price-match signals to improve RouteScore locally. |
 | Runtime MCP proxy | Puts Sentinel in the call path of upstream MCP tools: recognized payment, shell, file, and network intent is gated, and unrecognized calls follow a configurable `defaultAction` (see [THREAT_MODEL.md](THREAT_MODEL.md)). |
 | Local spend ledger | Sentinel's own persistent record of daily spend. Budget enforcement reads `max(ledger, caller-reported)`, so an agent reporting zero cannot reset its budget. |
+| Signed spend mandates | EIP-712 signed spending envelopes (scope, caps, expiry). Enforced against the ledger's lifetime per-mandate totals; with `requireMandate`, uncovered payments are held for approval. |
+| On-chain attestation | `attest` bundles local receipts into a merkle-committed, optionally signed record and can post it to Base via EAS — tamper-evident, timestamped proof your records existed. |
+| x402 service directory | `directory build` exports a sanitized, domain-level public directory of observed service behavior (settle rates, volume, RouteScore). Opt-in, reviewed, never auto-uploaded. |
 | Scanner and guards | Finds risky instructions and checks command, file, network, and payment actions before execution. |
 | Receipts | Captures before/after workspace hashes and verifies agent work. |
 | Local dashboard | A premium local control room for policy, RouteScore, telemetry, receipts, and guard tests. |

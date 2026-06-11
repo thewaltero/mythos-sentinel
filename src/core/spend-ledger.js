@@ -36,7 +36,9 @@ export function utcDateKey(date = new Date()) {
 }
 
 function emptyLedger() {
-  return { version: SPEND_LEDGER_VERSION, days: {} };
+  // `mandates` holds lifetime totals per mandate id (mandate caps are
+  // lifetime caps, so these are never pruned with the daily buckets).
+  return { version: SPEND_LEDGER_VERSION, days: {}, mandates: {} };
 }
 
 function emptyDay() {
@@ -64,7 +66,14 @@ export async function readSpendLedger({ rootDir = process.cwd() } = {}) {
     if (!parsed || typeof parsed !== 'object' || typeof parsed.days !== 'object' || parsed.days === null) {
       return { ledger: emptyLedger(), corrupted: true };
     }
-    return { ledger: { version: parsed.version || SPEND_LEDGER_VERSION, days: parsed.days }, corrupted: false };
+    return {
+      ledger: {
+        version: parsed.version || SPEND_LEDGER_VERSION,
+        days: parsed.days,
+        mandates: (parsed.mandates && typeof parsed.mandates === 'object') ? parsed.mandates : {}
+      },
+      corrupted: false
+    };
   } catch {
     return { ledger: emptyLedger(), corrupted: true };
   }
@@ -104,7 +113,8 @@ export async function recordSpend({
   amountUSDC,
   tier = 'known',
   date,
-  source = 'proxy'
+  source = 'proxy',
+  mandateId = null
 } = {}) {
   const amount = Number(amountUSDC);
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -122,6 +132,10 @@ export async function recordSpend({
   day.byDomain[normalizedDomain] = roundUSDC((day.byDomain[normalizedDomain] || 0) + amount);
   day.entries = Number(day.entries || 0) + 1;
   ledger.days[key] = day;
+  if (mandateId) {
+    ledger.mandates = ledger.mandates || {};
+    ledger.mandates[mandateId] = roundUSDC((ledger.mandates[mandateId] || 0) + amount);
+  }
   pruneOldDays(ledger, key);
 
   const file = spendLedgerPath(rootDir);
@@ -139,6 +153,8 @@ export async function recordSpend({
     amountUSDC: roundUSDC(amount),
     dayTotalUSDC: day.totalUSDC,
     dayUnknownUSDC: day.unknownUSDC,
+    mandateId: mandateId || null,
+    mandateTotalUSDC: mandateId ? ledger.mandates[mandateId] : null,
     source
   };
 }
@@ -163,4 +179,11 @@ export function effectiveSpend({ ledgerSpend, reportedDailyUSDC = 0, reportedUnk
     dailySpentUSDC: Math.max(ledgerDaily, Number(reportedDailyUSDC) || 0),
     unknownDailySpentUSDC: Math.max(ledgerUnknown, Number(reportedUnknownDailyUSDC) || 0)
   };
+}
+
+/** Lifetime total recorded against a mandate id (never pruned). */
+export async function mandateSpend({ rootDir = process.cwd(), mandateId } = {}) {
+  if (!mandateId) return 0;
+  const { ledger } = await readSpendLedger({ rootDir });
+  return Number(ledger.mandates?.[mandateId] || 0);
 }

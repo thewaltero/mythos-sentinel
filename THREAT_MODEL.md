@@ -91,6 +91,40 @@ Workspace receipts hash before/after state and verify that claimed work
 matches the disk. They prove *what changed*, not *why*, and they do not cover
 changes made outside the workspace root.
 
+## Signed spend mandates
+
+A mandate is an EIP-712 signature over scope, caps, and validity window. The
+signature proves *the holder of that key authorized this spending envelope* —
+nothing more. Enforcement remains local: an attacker with host access can
+delete the mandate check along with everything else (see "Trust boundaries").
+A corrupted or tampered mandate file fails verification and simply stops
+granting authority — mandates can only be removed by tampering, never widened.
+Private keys are read from environment variables, used in-memory, and never
+written to disk by Sentinel. Use a dedicated key for mandates; it does not
+need to hold funds.
+
+## On-chain attestation
+
+An attestation commits the hashes of local records (x402 receipts, ledger
+days, included receipt files) to Base via EAS. It proves that *these exact
+records existed and were committed to, at this time, by this key*. It is
+tamper-evidence and timestamping. It is **not** proof that the recorded work
+or payments were themselves truthful — a dishonest local record attests
+dishonestly. The value is bilateral: once attested, records cannot be quietly
+rewritten later. Broadcast requires an explicitly funded key in an env var
+(`SENTINEL_ATTEST_KEY`); use a dedicated low-value key, and test on
+base-sepolia before mainnet. Everything except broadcast is offline.
+
+## Directory publishing
+
+`directory build` is a manual, opt-in export. It aggregates to domain level
+only: counts, settle/fail rates, summed volume, day-precision first/last seen.
+No endpoints, paths, query strings, request ids, transaction hashes, or
+per-request amounts are included, and domains under the --min-receipts
+threshold are excluded. Sentinel never uploads the result anywhere; publishing
+is a deliberate human act. Review the output before sharing — aggregate spend
+volume per domain is itself information you may not want public.
+
 ## Telemetry
 
 Off by default. When enabled, events are sanitized locally (no prompts,
