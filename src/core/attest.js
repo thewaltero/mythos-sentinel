@@ -87,6 +87,7 @@ export function merkleRoot(leafHexes) {
 
 async function collectItems({ rootDir, includePaths = [] }) {
   const items = [];
+  const seenFiles = new Set();
 
   // 1. x402 receipts recorded by Sentinel.
   for (const receipt of await readX402Receipts({ rootDir })) {
@@ -98,11 +99,28 @@ async function collectItems({ rootDir, includePaths = [] }) {
   const spend = await dailySpend({ rootDir });
   if (spend.entries > 0) items.push({ type: 'spend-ledger-day', id: spend.date, sha256: sha256Hex(canonicalJson(spend)) });
 
-  // 3. Explicit extra files: Sentinel workspace receipts, mythos-router
-  //    receipts, anything the caller wants committed into the bundle.
+  // 3. Work receipts in the shared stack convention (.mythos/receipts/).
+  //    mythos-router writes its SWD receipts here, so an attestation bundle
+  //    covers verified work and verified spend out of the box — no --include
+  //    flags needed when the tools share a workspace.
+  const receiptsDir = path.join(rootDir, '.mythos', 'receipts');
+  if (await exists(receiptsDir)) {
+    const names = (await fs.readdir(receiptsDir)).filter((n) => n.endsWith('.json')).sort();
+    for (const name of names) {
+      const abs = path.join(receiptsDir, name);
+      seenFiles.add(abs);
+      const raw = await fs.readFile(abs);
+      items.push({ type: 'work-receipt', id: path.join('.mythos/receipts', name), sha256: sha256Hex(raw) });
+    }
+  }
+
+  // 4. Explicit extra files: anything else the caller wants committed into
+  //    the bundle. Deduplicated against auto-discovered work receipts so an
+  //    explicit --include of the same file never double-counts.
   for (const p of includePaths) {
     const abs = path.resolve(rootDir, p);
-    if (!(await exists(abs))) continue;
+    if (!(await exists(abs)) || seenFiles.has(abs)) continue;
+    seenFiles.add(abs);
     const raw = await fs.readFile(abs);
     items.push({ type: 'file', id: path.relative(rootDir, abs) || path.basename(abs), sha256: sha256Hex(raw) });
   }

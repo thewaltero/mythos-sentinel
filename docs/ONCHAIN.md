@@ -36,8 +36,11 @@ mythos-sentinel attest schema --broadcast --network base-sepolia
 mythos-sentinel attest --sign --broadcast --network base-sepolia
 ```
 
-The bundle commits to x402 receipts, the day's spend ledger, and any
-`--include` files via a sorted-leaf merkle root; `bundleHash` covers an
+The bundle commits to x402 receipts, the day's spend ledger, every work
+receipt found in `.mythos/receipts/` (the shared stack convention —
+mythos-router writes its SWD receipts there, so router + sentinel sessions
+attest together with no flags), and any `--include` files via a sorted-leaf
+merkle root; `bundleHash` covers an
 explicit committed payload, so the stored file can carry the signature and
 tx info without breaking verification.
 

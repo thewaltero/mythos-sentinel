@@ -222,3 +222,28 @@ test('verify succeeds on a stored bundle after signing attaches envelope fields'
   assert.equal(verifyAttestationBundle(reloaded).ok, true, 'envelope fields must not break the hash commitment');
   assert.equal((await verifySignedAttestation(reloaded.signed)).ok, true);
 });
+
+test('attest auto-includes work receipts from .mythos/receipts and dedupes explicit includes', async () => {
+  const rootDir = await tmpRoot();
+  const receiptsDir = path.join(rootDir, '.mythos', 'receipts');
+  await fs.mkdir(receiptsDir, { recursive: true });
+  const r1 = path.join(receiptsDir, '2026-06-11-swd-abc.json');
+  const r2 = path.join(receiptsDir, '2026-06-11-swd-def.json');
+  await fs.writeFile(r1, JSON.stringify({ id: 'abc', summary: 'task one' }), 'utf8');
+  await fs.writeFile(r2, JSON.stringify({ id: 'def', summary: 'task two' }), 'utf8');
+
+  // No --include flags: both work receipts discovered automatically.
+  const bundle = await buildAttestationBundle({ rootDir });
+  const workItems = bundle.items.filter((i) => i.type === 'work-receipt');
+  assert.equal(workItems.length, 2);
+  assert.ok(workItems.some((i) => i.id === '.mythos/receipts/2026-06-11-swd-abc.json'));
+
+  // Explicitly including an auto-discovered file must not double-count it.
+  const withInclude = await buildAttestationBundle({ rootDir, includePaths: [r1] });
+  assert.equal(withInclude.itemCount, bundle.itemCount, 'explicit include of auto-discovered receipt double-counted');
+
+  // Non-json files in the directory are ignored.
+  await fs.writeFile(path.join(receiptsDir, 'notes.txt'), 'not a receipt', 'utf8');
+  const after = await buildAttestationBundle({ rootDir });
+  assert.equal(after.itemCount, bundle.itemCount);
+});
